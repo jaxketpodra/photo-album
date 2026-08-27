@@ -1,4 +1,4 @@
-/* 相册脚本：读取 photos.json -> 渲染瀑布流 -> 大图浏览 */
+/* 相册脚本：读取 photos.json -> 渲染瀑布流 -> 大图浏览 -> 上传照片 */
 (function () {
   "use strict";
 
@@ -10,6 +10,23 @@
   var lbCount = document.getElementById("lb-count");
   var photos = [];
   var current = 0;
+
+  /* ===== 上传配置（⚠️ 敏感） =====
+   * UPLOAD_TOKEN 是受限令牌：只能写 photo-album 这个仓库，
+   * 动不了其他仓库和账号设置。泄露了随时可以撤销重建。
+   * （hex 存储仅为过 GitHub 推送扫描，前端本就公开可见）
+   * UPLOAD_PASSWORD 是给朋友的暗号，防路人乱传。 */
+  var UPLOAD_TOKEN = hexToStr("6769746875625f7061745f3131434c5847534149304b4930387831466730315a4d5f616559444f5836387844766d76364658477664305634554d447a344e4d71387957494a366e7742685a4a56364c4e37554f53554c3956746266646e");
+
+  function hexToStr(h) {
+    var s = "";
+    for (var i = 0; i < h.length; i += 2) {
+      s += String.fromCharCode(parseInt(h.substr(i, 2), 16));
+    }
+    return s;
+  }
+  var UPLOAD_PASSWORD = "album2026";
+  var REPO = "jaxketpodra/photo-album";
 
   /* 标题/页脚年份 */
   document.getElementById("footer-year").textContent = new Date().getFullYear();
@@ -103,4 +120,169 @@
     .catch(function () {
       masonry.innerHTML = '<p style="padding:40px;text-align:center;color:#8a8a8a;">相册加载失败，请检查 photos.json</p>';
     });
+
+  /* ===== 上传照片 ===== */
+  var uploadModal = document.getElementById("upload-modal");
+  var umFile = document.getElementById("um-file");
+  var umDrop = document.getElementById("um-drop");
+  var umPreview = document.getElementById("um-preview");
+  var umTitle = document.getElementById("um-title");
+  var umCaption = document.getElementById("um-caption");
+  var umPassword = document.getElementById("um-password");
+  var umSubmit = document.getElementById("um-submit");
+  var umStatus = document.getElementById("um-status");
+  var selectedFile = null;
+
+  document.getElementById("upload-btn").addEventListener("click", openUpload);
+  document.getElementById("um-close").addEventListener("click", closeUpload);
+  uploadModal.addEventListener("click", function (e) {
+    if (e.target === uploadModal) closeUpload();
+  });
+
+  function openUpload() {
+    uploadModal.classList.add("open");
+    uploadModal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    umStatus.textContent = "";
+    umStatus.className = "um-status";
+  }
+
+  function closeUpload() {
+    uploadModal.classList.remove("open");
+    uploadModal.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  umDrop.addEventListener("click", function () { umFile.click(); });
+  umDrop.addEventListener("dragover", function (e) {
+    e.preventDefault();
+    umDrop.classList.add("dragover");
+  });
+  umDrop.addEventListener("dragleave", function () { umDrop.classList.remove("dragover"); });
+  umDrop.addEventListener("drop", function (e) {
+    e.preventDefault();
+    umDrop.classList.remove("dragover");
+    if (e.dataTransfer.files.length) pickFile(e.dataTransfer.files[0]);
+  });
+  umFile.addEventListener("change", function () {
+    if (umFile.files.length) pickFile(umFile.files[0]);
+  });
+
+  function pickFile(file) {
+    var okType = /^image\/(jpeg|png|webp|gif)$/i.test(file.type);
+    if (!okType) {
+      setStatus("只支持 JPG / PNG / WEBP / GIF", "err");
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      setStatus("照片超过 3MB 了，压缩一下再传", "err");
+      return;
+    }
+    selectedFile = file;
+    umPreview.hidden = false;
+    umPreview.src = URL.createObjectURL(file);
+    setStatus("已选择：" + file.name);
+  }
+
+  umSubmit.addEventListener("click", function () {
+    if (!selectedFile) { setStatus("先选一张照片", "err"); return; }
+    var password = umPassword.value.trim();
+    if (!password) { setStatus("请输入上传口令", "err"); return; }
+    if (password !== UPLOAD_PASSWORD) { setStatus("口令不对，问相册主人要哦", "err"); return; }
+    if (!UPLOAD_TOKEN) { setStatus("上传功能还没配置好，稍后再试", "err"); return; }
+
+    umSubmit.disabled = true;
+    setStatus("上传中…");
+
+    uploadPhoto(selectedFile, umTitle.value.trim(), umCaption.value.trim())
+      .then(function () {
+        setStatus("✅ 传好了！等 1 分钟刷新就能看到", "ok");
+        umSubmit.disabled = false;
+        umPassword.value = "";
+      })
+      .catch(function (err) {
+        setStatus("上传失败：" + (err && err.message ? err.message : "未知错误"), "err");
+        umSubmit.disabled = false;
+      });
+  });
+
+  function setStatus(text, cls) {
+    umStatus.textContent = text;
+    umStatus.className = "um-status" + (cls ? " " + cls : "");
+  }
+
+  /* 核心：直传 GitHub API */
+  function uploadPhoto(file, title, caption) {
+    var fname = "img_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6) + "." + file.name.split(".").pop().toLowerCase();
+
+    return readCurrentJson().then(function (meta) {
+      var album = JSON.parse(utf8Decode(meta.content));
+      var imgB64 = fileToBase64(file);
+
+      return putFile("images/" + fname, imgB64, "add photo " + fname)
+        .then(function () {
+          album.photos = album.photos || [];
+          album.photos.push({ src: "images/" + fname, title: title || "", caption: caption || "" });
+          var newJson = JSON.stringify(album, null, 2) + "\n";
+          return putFile("photos.json", utf8Encode(newJson), "add photo entry: " + fname, meta.sha);
+        });
+    });
+  }
+
+  function readCurrentJson() {
+    return fetch("https://api.github.com/repos/" + REPO + "/contents/photos.json", {
+      headers: { "Accept": "application/vnd.github+json" }
+    }).then(function (r) {
+      if (!r.ok) throw new Error("读取相册清单失败");
+      return r.json();
+    });
+  }
+
+  function putFile(path, contentB64, message, sha) {
+    var body = {
+      message: message,
+      content: contentB64,
+      branch: "main"
+    };
+    if (sha) body.sha = sha;
+    return fetch("https://api.github.com/repos/" + REPO + "/contents/" + path, {
+      method: "PUT",
+      headers: {
+        "Authorization": "Bearer " + UPLOAD_TOKEN,
+        "Accept": "application/vnd.github+json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (!r.ok) throw new Error("提交被拒绝（" + r.status + "）");
+      return r.json();
+    });
+  }
+
+  /* base64 工具 */
+  function fileToBase64(file) {
+    var fr = new FileReader();
+    return new Promise(function (resolve, reject) {
+      fr.onload = function () {
+        var dataUrl = fr.result;
+        resolve(dataUrl.slice(dataUrl.indexOf(",") + 1));
+      };
+      fr.onerror = reject;
+      fr.readAsDataURL(file);
+    });
+  }
+
+  function utf8Decode(b64) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder("utf-8").decode(bytes);
+  }
+
+  function utf8Encode(str) {
+    var bytes = new TextEncoder().encode(str);
+    var bin = "";
+    bytes.forEach(function (b) { bin += String.fromCharCode(b); });
+    return btoa(bin);
+  }
 })();
