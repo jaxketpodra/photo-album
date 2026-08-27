@@ -119,6 +119,14 @@ body {
   font-size: 0.85rem;
 }
 
+.site-footer a {
+  color: var(--muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.site-footer a:hover { color: var(--ink); }
+
 /* ===== 大图浏览（lightbox） ===== */
 .lightbox {
   position: fixed;

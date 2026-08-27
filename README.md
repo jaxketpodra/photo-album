@@ -29,6 +29,12 @@
 - 换照片顺序 → 调换 `photos` 里行的顺序
 - 不要的 → 删掉那一行
 
+## 朋友怎么传照片（不用懂代码）
+
+给朋友看这个页面就行：**`how-to-upload.html`**（线上地址：`https://jaxketpodra.github.io/photo-album/how-to-upload.html`），3 步图文教程：传图 → 改一行 → 提交。
+
+前提：朋友需要有 GitHub 账号，并被加为仓库 collaborator。
+
 ## 本地预览
 
 在项目文件夹里运行：
