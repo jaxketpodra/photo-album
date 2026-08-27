@@ -243,9 +243,19 @@
 
     tryUpload()
       .then(function () {
-        setStatus("✅ 传好了！等 1 分钟刷新就能看到", "ok");
+        setStatus("✅ 已上传！正在等页面更新…", "ok");
         umSubmit.disabled = false;
         umPassword.value = "";
+        /* 自动等待 Pages 构建完成并刷新照片墙 */
+        var expected = photos.length + 1;
+        waitForUpdate(expected, function (ok) {
+          if (ok) {
+            setStatus("✅ 已更新！照片上墙了", "ok");
+            setTimeout(closeUpload, 900);
+          } else {
+            setStatus("✅ 已上传，过一会儿刷新就能看到", "ok");
+          }
+        }, 90000);
       })
       .catch(function (err) {
         setStatus("上传失败：" + (err && err.message ? err.message : "未知错误"), "err");
@@ -256,6 +266,28 @@
   function setStatus(text, cls) {
     umStatus.textContent = text;
     umStatus.className = "um-status" + (cls ? " " + cls : "");
+  }
+
+  /* 上传后轮询 photos.json，检测到新照片就自动重新渲染（免手动刷新） */
+  function waitForUpdate(expectedCount, onDone, timeoutMs) {
+    var start = Date.now();
+    var timer = setInterval(function () {
+      fetch("photos.json", { cache: "no-store" })
+        .then(function (r) { return r.json(); })
+        .then(function (album) {
+          if (album.photos && album.photos.length >= expectedCount) {
+            clearInterval(timer);
+            render(album);
+            onDone(true);
+          } else if (Date.now() - start > timeoutMs) {
+            clearInterval(timer);
+            onDone(false);
+          }
+        })
+        .catch(function () {
+          if (Date.now() - start > timeoutMs) { clearInterval(timer); onDone(false); }
+        });
+    }, 5000);
   }
 
   /* 核心：直传 GitHub API */
