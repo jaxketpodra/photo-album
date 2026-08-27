@@ -29,11 +29,17 @@
 - 换照片顺序 → 调换 `photos` 里行的顺序
 - 不要的 → 删掉那一行
 
-## 朋友怎么传照片（不用懂代码）
+## 朋友怎么传照片（不用懂代码，不用代理）
 
-给朋友看这个页面就行：**`how-to-upload.html`**（线上地址：`https://jaxketpodra.github.io/photo-album/how-to-upload.html`），3 步图文教程：传图 → 改一行 → 提交。
+朋友打开相册 → 点右上角 **"＋ 上传照片"** → 选照片 → 填标题/说明（可选）→ 输入**上传口令** → 点上传 → 等 1 分钟刷新。
 
-前提：朋友需要有 GitHub 账号，并被加为仓库 collaborator。
+- 教程页：`how-to-upload.html`（线上：`https://jaxketpodra.github.io/photo-album/how-to-upload.html`），直接发给朋友看
+- 上传口令在 `script.js` 的 `UPLOAD_PASSWORD` 里改，默认 `album2026`，告诉朋友即可
+- 上传功能原理：页面 JS 直调 GitHub API（`api.github.com` 国内直连可达，不需要代理），令牌是受限的 fine-grained PAT（只写 photo-album 仓库，hex 存储过推送扫描）
+
+## 手动加照片（备用，不用按钮）
+
+照片由 `photos.json` 管理，手动改法见上方「怎么换照片」。也可以直接改文件后 git 提交。
 
 ## 本地预览
 

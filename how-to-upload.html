@@ -38,16 +38,13 @@
     font-family: "SF Mono", Consolas, "Courier New", monospace;
     font-size: 0.88em; word-break: break-all;
   }
-  .json-box {
-    background: #1e1e1e; color: #d4d4d4; border-radius: 8px;
-    padding: 16px 18px; font-family: "SF Mono", Consolas, monospace;
-    font-size: 0.82rem; line-height: 1.8; overflow-x: auto; margin: 10px 0;
-    white-space: pre;
-  }
-  .json-box .hl { color: #4ec9b0; }
   .tip {
     background: #fff8e6; border: 1px solid #f0dfa8; border-radius: 8px;
     padding: 12px 16px; margin-top: 12px; font-size: 0.9rem; color: #6b5a1e;
+  }
+  .warn {
+    background: #fdecec; border: 1px solid #f0c4c4; border-radius: 8px;
+    padding: 12px 16px; margin-top: 12px; font-size: 0.9rem; color: #8b2f2f;
   }
   a { color: #0366d6; text-decoration: none; }
   a:hover { text-decoration: underline; }
@@ -58,39 +55,31 @@
 <div class="wrap">
 
   <h1>📷 相册传照片教程</h1>
-  <p class="intro">一共 3 步，大约 3 分钟。以后每次传照片都照这个来。</p>
+  <p class="intro">打开相册就能传，一共 3 步，1 分钟搞定。</p>
 
   <div class="step">
-    <h2><span class="num">1</span>把照片传上去</h2>
-    <p>打开相册仓库：<a href="https://github.com/jaxketpodra/photo-album" target="_blank">github.com/jaxketpodra/photo-album</a>（需要先登录你的 GitHub 账号）</p>
+    <h2><span class="num">1</span>打开相册，点"＋ 上传照片"</h2>
+    <p>打开相册链接：<a href="https://jaxketpodra.github.io/photo-album/" target="_blank">jaxketpodra.github.io/photo-album/</a></p>
     <ul>
-      <li>点 <code>images</code> 文件夹进去</li>
-      <li>点页面右上角的 <code>Add file</code> → 选 <code>Upload files</code></li>
-      <li>把照片文件直接拖进页面里（可以一次拖很多张）</li>
-      <li>往下滚，点绿色按钮 <code>Commit changes</code> → 再点一次确认</li>
+      <li>点页面右上角的 <code>＋ 上传照片</code> 按钮</li>
     </ul>
-    <div class="tip">✅ 照片要求：JPG 或 PNG 格式，单张别超过 3MB。文件名建议用 <code>01.jpg</code>、<code>02.jpg</code> 这种——<b>别用中文和空格</b>，容易出错。</div>
   </div>
 
   <div class="step">
-    <h2><span class="num">2</span>告诉相册"我加了照片"</h2>
-    <p>回到仓库主页，点 <code>photos.json</code> 这个文件 → 点右上角的 ✏️ 铅笔图标（Edit）</p>
-    <p>在 <code>photos</code> 那一列里，<b>复制一行，改三个地方</b>，粘贴到列表末尾：</p>
-    <div class="json-box"><span class="hl">{</span> "src": <span class="hl">"images/01.jpg"</span>, "title": <span class="hl">"照片标题"</span>, "caption": <span class="hl">"想说的话"</span> <span class="hl">}</span><span class="hl">,</span></div>
+    <h2><span class="num">2</span>选照片，填信息</h2>
     <ul>
-      <li><code>images/01.jpg</code> → 改成你刚传的文件名（和第一步的文件名一模一样）</li>
-      <li><code>照片标题</code> → 这张照片叫什么（随便写）</li>
-      <li><code>想说的话</code> → 一句话说明（可以不写，留空也行）</li>
+      <li>点击虚线框选照片，或直接把照片拖进去（可以预览）</li>
+      <li>照片标题、想说的话——想写就写，不想写留空</li>
+      <li>输入<strong>上传口令</strong>（找相册主人要，一个暗号）</li>
+      <li>点 <code>上传</code> 按钮</li>
     </ul>
-    <p>改完往下滚，点绿色按钮 <code>Commit changes</code>。</p>
-    <div class="tip">⚠️ 标点符号要用英文的（" 和 , ），别用中文的（" 和 ，）。删掉不想留的照片，就把对应那一整行删掉。</div>
+    <div class="tip">✅ 照片要求：JPG / PNG 格式，单张不超过 3MB。一次传一张，想传多张就多传几次。</div>
   </div>
 
   <div class="step">
-    <h2><span class="num">3</span>看效果</h2>
-    <p>等大约 1 分钟（页面自动更新），然后打开相册：</p>
-    <p><a href="https://jaxketpodra.github.io/photo-album/" target="_blank">jaxketpodra.github.io/photo-album/</a></p>
-    <p>照片就出现在墙上了！顺序 = 你在 <code>photos.json</code> 里的行顺序，想排前面就放上面。</p>
+    <h2><span class="num">3</span>等 1 分钟，刷新看效果</h2>
+    <p>页面会自动更新。等大约 1 分钟，刷新一下相册，照片就出现在墙上了。</p>
+    <div class="warn">⚠️ 口令别外传——相册主人给你的暗号，只给你用。</div>
   </div>
 
   <p class="footer">遇到问题？截图发给相册主人 😊</p>
