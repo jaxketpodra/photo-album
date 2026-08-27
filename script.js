@@ -254,7 +254,11 @@
       },
       body: JSON.stringify(body)
     }).then(function (r) {
-      if (!r.ok) throw new Error("提交被拒绝（" + r.status + "）");
+      if (!r.ok) {
+        return r.json().catch(function () { return {}; }).then(function (err) {
+          throw new Error("提交被拒绝（" + r.status + "）" + (err.message ? "：" + err.message : ""));
+        });
+      }
       return r.json();
     });
   }
