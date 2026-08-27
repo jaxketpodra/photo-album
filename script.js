@@ -263,16 +263,30 @@
     var fname = "img_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6) + "." + file.name.split(".").pop().toLowerCase();
 
     return readCurrentJson().then(function (meta) {
-      var album = JSON.parse(utf8Decode(meta.content));
-      var imgB64 = fileToBase64(file);
-
-      return putFile("images/" + fname, imgB64, "add photo " + fname)
-        .then(function () {
-          album.photos = album.photos || [];
-          album.photos.push({ src: "images/" + fname, title: title || "", caption: caption || "" });
-          var newJson = JSON.stringify(album, null, 2) + "\n";
-          return putFile("photos.json", utf8Encode(newJson), "add photo entry: " + fname, meta.sha);
-        });
+      var album;
+      try {
+        album = JSON.parse(utf8Decode(meta.content));
+      } catch (e) {
+        throw new Error("清单解析失败：" + e.message);
+      }
+      return fileToBase64(file).then(function (imgB64) {
+        return putFile("images/" + fname, imgB64, "add photo " + fname)
+          .then(function () {
+            album.photos = album.photos || [];
+            album.photos.push({ src: "images/" + fname, title: title || "", caption: caption || "" });
+            var newJson = JSON.stringify(album, null, 2) + "\n";
+            return putFile("photos.json", utf8Encode(newJson), "add photo entry: " + fname, meta.sha);
+          })
+          .catch(function (err) {
+            err.message = "传图失败：" + err.message;
+            throw err;
+          });
+      });
+    }).catch(function (err) {
+      if (err.message.indexOf("清单") === -1 && err.message.indexOf("传图") === -1) {
+        err.message = "更新清单失败：" + err.message;
+      }
+      throw err;
     });
   }
 
@@ -302,8 +316,9 @@
       body: JSON.stringify(body)
     }).then(function (r) {
       if (!r.ok) {
-        return r.json().catch(function () { return {}; }).then(function (err) {
-          throw new Error("提交被拒绝（" + r.status + "）" + (err.message ? "：" + err.message : ""));
+        return r.text().then(function (body) {
+          var detail = body ? body.slice(0, 300) : "";
+          throw new Error("提交被拒绝（" + r.status + "）" + (detail ? "：" + detail : ""));
         });
       }
       return r.json();
