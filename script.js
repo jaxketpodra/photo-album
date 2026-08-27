@@ -174,14 +174,50 @@
       setStatus("只支持 JPG / PNG / WEBP / GIF", "err");
       return;
     }
-    if (file.size > 3 * 1024 * 1024) {
-      setStatus("照片超过 3MB 了，压缩一下再传", "err");
+    if (file.size > 8 * 1024 * 1024) {
+      setStatus("照片超过 8MB 了，先压缩一下再传", "err");
       return;
     }
-    selectedFile = file;
-    umPreview.hidden = false;
-    umPreview.src = URL.createObjectURL(file);
-    setStatus("已选择：" + file.name);
+    setStatus("处理中…");
+    compressImage(file).then(function (compressed) {
+      selectedFile = compressed;
+      umPreview.hidden = false;
+      umPreview.src = URL.createObjectURL(compressed);
+      var kb = (compressed.size / 1024).toFixed(0);
+      setStatus("已选择：" + file.name + "（自动压缩后 " + kb + "KB）");
+    }).catch(function () {
+      setStatus("图片处理失败，换一张试试", "err");
+    });
+  }
+
+  /* 前端压缩：长边超 1920 就缩放，转 JPEG（PNG 保留），大幅减小请求体 */
+  function compressImage(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function () {
+        var MAX = 1920;
+        var w = img.naturalWidth, h = img.naturalHeight;
+        if (w > MAX || h > MAX) {
+          var ratio = Math.min(MAX / w, MAX / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
+        }
+        var canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        var ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        var type = file.type === "image/png" ? "image/png" : "image/jpeg";
+        var baseName = file.name.replace(/\.[^.]+$/, "") || "photo";
+        canvas.toBlob(function (blob) {
+          URL.revokeObjectURL(url);
+          resolve(new File([blob], baseName + (type === "image/png" ? ".png" : ".jpg"), { type: type }));
+        }, type, 0.85);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("load fail")); };
+      img.src = url;
+    });
   }
 
   umSubmit.addEventListener("click", function () {
@@ -194,7 +230,18 @@
     umSubmit.disabled = true;
     setStatus("上传中…");
 
-    uploadPhoto(selectedFile, umTitle.value.trim(), umCaption.value.trim())
+    /* 失败自动重试一次（每次重读清单拿新 sha，图片覆盖式，幂等安全） */
+    var attempts = 0;
+    function tryUpload() {
+      attempts++;
+      return uploadPhoto(selectedFile, umTitle.value.trim(), umCaption.value.trim())
+        .catch(function (err) {
+          if (attempts < 2) { setStatus("上传中…重试第 " + attempts + " 次"); return tryUpload(); }
+          throw err;
+        });
+    }
+
+    tryUpload()
       .then(function () {
         setStatus("✅ 传好了！等 1 分钟刷新就能看到", "ok");
         umSubmit.disabled = false;
