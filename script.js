@@ -305,7 +305,8 @@
         return putFile("images/" + fname, imgB64, "add photo " + fname)
           .then(function () {
             album.photos = album.photos || [];
-            album.photos.push({ src: "images/" + fname, title: title || "", caption: caption || "" });
+            /* 新上传的插到最前面，最新照片排第一 */
+            album.photos.unshift({ src: "images/" + fname, title: title || "", caption: caption || "" });
             var newJson = JSON.stringify(album, null, 2) + "\n";
             return putFile("photos.json", utf8Encode(newJson), "add photo entry: " + fname, meta.sha);
           })
