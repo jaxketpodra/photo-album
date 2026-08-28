@@ -175,31 +175,22 @@
     umFile.value = ""; /* 清空，重复选同一文件也能再触发 */
   });
 
-  /* 选入文件（可多选/追加）：过滤 -> 压缩 -> 进队列 -> 渲染 */
+  /* 选入文件（可多选/追加）：过滤 -> 原图进队列 -> 渲染 */
   function pickFiles(fileList) {
     var files = Array.prototype.slice.call(fileList);
     var skipped = 0;
-    var tasks = [];
     files.forEach(function (f) {
       if (!/^image\/(jpeg|png|webp|gif)$/i.test(f.type)) { skipped++; return; }
-      if (f.size > 8 * 1024 * 1024) { skipped++; return; }
-      tasks.push(
-        compressImage(f).then(function (c) { return { file: c, title: "" }; })
-          .catch(function () { skipped++; return null; })
-      );
+      if (f.size > 25 * 1024 * 1024) { skipped++; return; }
+      /* 原图直传，不压缩保画质（GIF 也保持动图） */
+      selectedFiles.push({ file: f, title: "" });
     });
-    if (!tasks.length) {
-      setStatus(skipped ? "这些照片格式不支持或超过 8MB 了" : "先选照片", "err");
+    renderSelection();
+    if (!selectedFiles.length) {
+      setStatus(skipped ? "这些照片格式不支持或超过 25MB 了" : "先选照片", "err");
       return;
     }
-    setStatus("处理中…");
-    Promise.all(tasks).then(function (list) {
-      list.forEach(function (it) { if (it) selectedFiles.push(it); });
-      renderSelection();
-      var msg = "已选 " + selectedFiles.length + " 张";
-      if (skipped) msg += "（跳过 " + skipped + " 张不支持/超限的）";
-      setStatus(msg);
-    });
+    setStatus("已选 " + selectedFiles.length + " 张" + (skipped ? "（跳过 " + skipped + " 张不支持/超限的）" : ""));
   }
 
   /* 预览区：1 张 = 大预览+标题描述；多张 = 列表（每行缩略图+标题+删除） */
