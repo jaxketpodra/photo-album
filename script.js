@@ -36,6 +36,13 @@
     return /^https?:\/\//i.test(src) ? src : src;
   }
 
+  /* 照片墙用缩略图：images/1.jpeg -> thumbs/1.webp；外链原样 */
+  function thumbSrc(src) {
+    if (!/^images\//.test(src)) return src;
+    var base = src.split("/").pop().replace(/\.[^.]+$/, "");
+    return "thumbs/" + base + ".webp";
+  }
+
   /* 渲染照片墙 */
   function render(album) {
     document.getElementById("album-title").textContent = album.title || "相册";
@@ -50,9 +57,15 @@
       item.className = "item";
 
       var img = document.createElement("img");
-      img.src = resolveSrc(photo.src);
+      img.src = thumbSrc(photo.src);
       img.alt = photo.title || "";
       img.loading = "lazy";
+      /* 缩略图不存在（历史图）就回退原图，只回退一次防死循环 */
+      img.onerror = function () {
+        if (img.dataset.fbk) return;
+        img.dataset.fbk = "1";
+        img.src = resolveSrc(photo.src);
+      };
 
       var overlay = document.createElement("div");
       overlay.className = "overlay";
@@ -363,10 +376,43 @@
   }
 
   function putImageOnce(file) {
-    var fname = "img_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6) + "." + file.name.split(".").pop().toLowerCase();
+    var base = "img_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+    var ext = file.name.split(".").pop().toLowerCase();
+    var fname = base + "." + ext;
     return fileToBase64(file).then(function (imgB64) {
       return putFile("images/" + fname, imgB64, "add photo " + fname);
+    }).then(function () {
+      /* 缩略图失败不阻塞主流程（墙上有 onerror 回退原图兜底） */
+      return makeThumb(file).then(function (thumb) {
+        return fileToBase64(thumb).then(function (tb64) {
+          return putFile("thumbs/" + base + ".webp", tb64, "add thumb " + base);
+        });
+      }).catch(function () {});
     }).then(function () { return fname; });
+  }
+
+  /* 前端生成缩略图：宽 600 webp q0.8（GIF 取首帧变静态缩略图，点开仍看动图） */
+  function makeThumb(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function () {
+        var MAX = 600;
+        var w = img.naturalWidth, h = img.naturalHeight;
+        if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+        var canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(function (blob) {
+          if (blob) resolve(new File([blob], "thumb.webp", { type: "image/webp" }));
+          else reject(new Error("webp unsupported"));
+        }, "image/webp", 0.8);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("load fail")); };
+      img.src = url;
+    });
   }
 
   /* 一次性把这批条目插到清单最前；sha 冲突（别人同时传）重读重试 */
