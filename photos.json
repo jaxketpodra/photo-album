@@ -3,66 +3,6 @@
   "description": "把值得记住的瞬间，一张一张留下来。",
   "photos": [
     {
-      "src": "https://picsum.photos/seed/album01/900/1200",
-      "title": "盛夏的海边",
-      "caption": "浪花拍在脚背上，凉凉的。"
-    },
-    {
-      "src": "https://picsum.photos/seed/album02/1200/800",
-      "title": "街角的咖啡馆",
-      "caption": "靠窗的位置，下午三点的光。"
-    },
-    {
-      "src": "https://picsum.photos/seed/album03/800/1000",
-      "title": "旧书摊",
-      "caption": "淘到一本 1987 年的诗集。"
-    },
-    {
-      "src": "https://picsum.photos/seed/album04/1100/750",
-      "title": "山顶的日落",
-      "caption": "爬到一半差点放弃，值了。"
-    },
-    {
-      "src": "https://picsum.photos/seed/album05/900/1100",
-      "title": "雨后的巷子",
-      "caption": "青石板反着光，像镜子。"
-    },
-    {
-      "src": "https://picsum.photos/seed/album06/1200/900",
-      "title": "猫",
-      "caption": "它在墙头看了我很久。"
-    },
-    {
-      "src": "https://picsum.photos/seed/album07/850/1150",
-      "title": "火车窗外",
-      "caption": "路过一片金色的麦田。"
-    },
-    {
-      "src": "https://picsum.photos/seed/album08/1150/800",
-      "title": "深夜的面馆",
-      "caption": "加班后的慰藉，一碗热汤。"
-    },
-    {
-      "src": "https://picsum.photos/seed/album09/950/1250",
-      "title": "春天的樱花",
-      "caption": "风一吹，花瓣像下雪。"
-    },
-    {
-      "src": "https://picsum.photos/seed/album10/1250/850",
-      "title": "老城的天台",
-      "caption": "鸽子从头顶成群飞过。"
-    },
-    {
-      "src": "https://picsum.photos/seed/album11/880/1080",
-      "title": "便利店",
-      "caption": "凌晨两点，关东煮还热着。"
-    },
-    {
-      "src": "https://picsum.photos/seed/album12/1080/760",
-      "title": "归途",
-      "caption": "晚霞把整条路染成橘色。"
-    },
-    {
       "src": "images/mmexport5b357820f4c5dfd87499b640e164dc86_178784.jpeg",
       "title": "",
       "caption": ""
@@ -81,16 +21,6 @@
       "src": "images/img_mtbtfbdm_bej6.jpg",
       "title": "大肥鱼",
       "caption": "欠打"
-    },
-    {
-      "src": "images/img_mtc8i7f6_aegg.jpg",
-      "title": "小克",
-      "caption": ""
-    },
-    {
-      "src": "images/img_mtc8ujdq_xd7v.jpg",
-      "title": "大肥鱼",
-      "caption": "吃饱了"
     }
   ]
 }
