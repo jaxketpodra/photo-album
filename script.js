@@ -1,4 +1,4 @@
-/* 相册脚本：读取 photos.json -> 渲染瀑布流 -> 大图浏览 -> 上传照片 */
+/* 相册脚本：读取 photos.json -> 渲染瀑布流 -> 大图浏览 -> 上传照片（支持批量） */
 (function () {
   "use strict";
 
@@ -121,17 +121,19 @@
       masonry.innerHTML = '<p style="padding:40px;text-align:center;color:#8a8a8a;">相册加载失败，请检查 photos.json</p>';
     });
 
-  /* ===== 上传照片 ===== */
+  /* ===== 上传照片（单张/批量统一流程） ===== */
   var uploadModal = document.getElementById("upload-modal");
   var umFile = document.getElementById("um-file");
   var umDrop = document.getElementById("um-drop");
   var umPreview = document.getElementById("um-preview");
+  var umList = document.getElementById("um-list");
   var umTitle = document.getElementById("um-title");
   var umCaption = document.getElementById("um-caption");
   var umPassword = document.getElementById("um-password");
   var umSubmit = document.getElementById("um-submit");
   var umStatus = document.getElementById("um-status");
-  var selectedFile = null;
+  /* 已选照片队列：[{ file: File(已压缩), title: "" }] */
+  var selectedFiles = [];
 
   document.getElementById("upload-btn").addEventListener("click", openUpload);
   document.getElementById("um-close").addEventListener("click", closeUpload);
@@ -143,6 +145,10 @@
     uploadModal.classList.add("open");
     uploadModal.setAttribute("aria-hidden", "false");
     document.body.style.overflow = "hidden";
+    selectedFiles = [];
+    umTitle.value = "";
+    umCaption.value = "";
+    renderSelection();
     umStatus.textContent = "";
     umStatus.className = "um-status";
   }
@@ -162,105 +168,156 @@
   umDrop.addEventListener("drop", function (e) {
     e.preventDefault();
     umDrop.classList.remove("dragover");
-    if (e.dataTransfer.files.length) pickFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files.length) pickFiles(e.dataTransfer.files);
   });
   umFile.addEventListener("change", function () {
-    if (umFile.files.length) pickFile(umFile.files[0]);
+    if (umFile.files.length) pickFiles(umFile.files);
+    umFile.value = ""; /* 清空，重复选同一文件也能再触发 */
   });
 
-  function pickFile(file) {
-    var okType = /^image\/(jpeg|png|webp|gif)$/i.test(file.type);
-    if (!okType) {
-      setStatus("只支持 JPG / PNG / WEBP / GIF", "err");
-      return;
-    }
-    if (file.size > 8 * 1024 * 1024) {
-      setStatus("照片超过 8MB 了，先压缩一下再传", "err");
+  /* 选入文件（可多选/追加）：过滤 -> 压缩 -> 进队列 -> 渲染 */
+  function pickFiles(fileList) {
+    var files = Array.prototype.slice.call(fileList);
+    var skipped = 0;
+    var tasks = [];
+    files.forEach(function (f) {
+      if (!/^image\/(jpeg|png|webp|gif)$/i.test(f.type)) { skipped++; return; }
+      if (f.size > 8 * 1024 * 1024) { skipped++; return; }
+      tasks.push(
+        compressImage(f).then(function (c) { return { file: c, title: "" }; })
+          .catch(function () { skipped++; return null; })
+      );
+    });
+    if (!tasks.length) {
+      setStatus(skipped ? "这些照片格式不支持或超过 8MB 了" : "先选照片", "err");
       return;
     }
     setStatus("处理中…");
-    compressImage(file).then(function (compressed) {
-      selectedFile = compressed;
-      umPreview.hidden = false;
-      umPreview.src = URL.createObjectURL(compressed);
-      var kb = (compressed.size / 1024).toFixed(0);
-      setStatus("已选择：" + file.name + "（自动压缩后 " + kb + "KB）");
-    }).catch(function () {
-      setStatus("图片处理失败，换一张试试", "err");
+    Promise.all(tasks).then(function (list) {
+      list.forEach(function (it) { if (it) selectedFiles.push(it); });
+      renderSelection();
+      var msg = "已选 " + selectedFiles.length + " 张";
+      if (skipped) msg += "（跳过 " + skipped + " 张不支持/超限的）";
+      setStatus(msg);
     });
   }
 
-  /* 前端压缩：长边超 1920 就缩放，转 JPEG（PNG 保留），大幅减小请求体 */
-  function compressImage(file) {
-    return new Promise(function (resolve, reject) {
-      var img = new Image();
-      var url = URL.createObjectURL(file);
-      img.onload = function () {
-        var MAX = 1920;
-        var w = img.naturalWidth, h = img.naturalHeight;
-        if (w > MAX || h > MAX) {
-          var ratio = Math.min(MAX / w, MAX / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-        var canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        var ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, w, h);
-        var type = file.type === "image/png" ? "image/png" : "image/jpeg";
-        var baseName = file.name.replace(/\.[^.]+$/, "") || "photo";
-        canvas.toBlob(function (blob) {
-          URL.revokeObjectURL(url);
-          resolve(new File([blob], baseName + (type === "image/png" ? ".png" : ".jpg"), { type: type }));
-        }, type, 0.85);
-      };
-      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("load fail")); };
-      img.src = url;
+  /* 预览区：1 张 = 大预览+标题描述；多张 = 列表（每行缩略图+标题+删除） */
+  function renderSelection() {
+    var n = selectedFiles.length;
+    if (n === 0) {
+      umPreview.hidden = true;
+      umList.hidden = true;
+      umList.innerHTML = "";
+      umTitle.style.display = "";
+      umCaption.style.display = "";
+      return;
+    }
+    if (n === 1) {
+      umList.hidden = true;
+      umList.innerHTML = "";
+      umPreview.hidden = false;
+      umPreview.src = URL.createObjectURL(selectedFiles[0].file);
+      umTitle.style.display = "";
+      umCaption.style.display = "";
+      return;
+    }
+    umPreview.hidden = true;
+    umTitle.style.display = "none";
+    umCaption.style.display = "none";
+    umList.hidden = false;
+    umList.innerHTML = "";
+    selectedFiles.forEach(function (it, idx) {
+      var row = document.createElement("div");
+      row.className = "um-item";
+
+      var img = document.createElement("img");
+      img.src = URL.createObjectURL(it.file);
+      img.alt = "";
+
+      var input = document.createElement("input");
+      input.type = "text";
+      input.maxLength = 40;
+      input.placeholder = "标题（可选）";
+      input.value = it.title || "";
+      input.addEventListener("input", function () { it.title = input.value; });
+
+      var del = document.createElement("button");
+      del.className = "um-item-del";
+      del.innerHTML = "&times;";
+      del.title = "移除这张";
+      del.addEventListener("click", function () {
+        selectedFiles.splice(idx, 1);
+        renderSelection();
+        setStatus(selectedFiles.length ? "已选 " + selectedFiles.length + " 张" : "");
+      });
+
+      row.appendChild(img);
+      row.appendChild(input);
+      row.appendChild(del);
+      umList.appendChild(row);
     });
   }
 
   umSubmit.addEventListener("click", function () {
-    if (!selectedFile) { setStatus("先选一张照片", "err"); return; }
+    if (!selectedFiles.length) { setStatus("先选照片", "err"); return; }
     var password = umPassword.value.trim();
     if (!password) { setStatus("请输入上传口令", "err"); return; }
     if (password !== UPLOAD_PASSWORD) { setStatus("口令不对，问相册主人要哦", "err"); return; }
     if (!UPLOAD_TOKEN) { setStatus("上传功能还没配置好，稍后再试", "err"); return; }
 
-    umSubmit.disabled = true;
-    setStatus("上传中…");
-
-    /* 失败自动重试一次（每次重读清单拿新 sha，图片覆盖式，幂等安全） */
-    var attempts = 0;
-    function tryUpload() {
-      attempts++;
-      return uploadPhoto(selectedFile, umTitle.value.trim(), umCaption.value.trim())
-        .catch(function (err) {
-          if (attempts < 2) { setStatus("上传中…重试第 " + attempts + " 次"); return tryUpload(); }
-          throw err;
-        });
+    /* 收集待传条目：单张读标题/描述框，多张读列表里各自标题 */
+    var entries;
+    if (selectedFiles.length === 1) {
+      entries = [{ file: selectedFiles[0].file, title: umTitle.value.trim(), caption: umCaption.value.trim() }];
+    } else {
+      entries = selectedFiles.map(function (it) {
+        return { file: it.file, title: (it.title || "").trim(), caption: "" };
+      });
     }
 
-    tryUpload()
-      .then(function () {
-        setStatus("✅ 已上传！正在等页面更新…", "ok");
+    umSubmit.disabled = true;
+
+    /* 1) 串行传所有图（单张失败重试一次，仍失败跳过继续） */
+    uploadImagesSerial(entries).then(function (results) {
+      var okList = results.filter(function (r) { return r.ok; });
+      var fails = results.filter(function (r) { return !r.ok; });
+      var failTip = fails.length ? "（" + fails.length + " 张失败：" + fails.map(function (f) { return f.name; }).join("、") + "）" : "";
+
+      if (!okList.length) {
+        setStatus("全部上传失败了，检查网络再试", "err");
         umSubmit.disabled = false;
-        umPassword.value = "";
-        /* 自动等待 Pages 构建完成并刷新照片墙 */
-        var expected = photos.length + 1;
+        return;
+      }
+
+      /* 2) 一次性更新清单（这批整体插到最前），只触发一次 Pages 部署 */
+      setStatus("照片传好了，更新清单…");
+      var newEntries = okList.map(function (r) {
+        return { src: r.src, title: r.title || "", caption: r.caption || "" };
+      });
+      appendEntries(newEntries).then(function () {
+        /* 3) 等部署完成自动刷新 */
+        var expected = photos.length + okList.length;
+        setStatus("✅ 已上传 " + okList.length + " 张" + failTip + "，等页面更新…", fails.length ? "err" : "ok");
         waitForUpdate(expected, function (ok) {
+          umSubmit.disabled = false;
           if (ok) {
-            setStatus("✅ 已更新！照片上墙了", "ok");
-            setTimeout(closeUpload, 900);
+            setStatus("✅ 照片上墙了！" + failTip, fails.length ? "err" : "ok");
+            selectedFiles = [];
+            umTitle.value = "";
+            umCaption.value = "";
+            umPassword.value = "";
+            setTimeout(closeUpload, fails.length ? 3500 : 1200);
           } else {
-            setStatus("✅ 已上传，过一会儿刷新就能看到", "ok");
+            setStatus("✅ 已上传，过一会儿刷新就能看到" + failTip, fails.length ? "err" : "ok");
+            umPassword.value = "";
           }
         }, 90000);
-      })
-      .catch(function (err) {
-        setStatus("上传失败：" + (err && err.message ? err.message : "未知错误"), "err");
+      }).catch(function (err) {
+        setStatus("更新清单失败：" + (err && err.message ? err.message : "未知错误"), "err");
         umSubmit.disabled = false;
       });
+    });
   });
 
   function setStatus(text, cls) {
@@ -290,37 +347,60 @@
     }, 5000);
   }
 
-  /* 核心：直传 GitHub API */
-  function uploadPhoto(file, title, caption) {
-    var fname = "img_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6) + "." + file.name.split(".").pop().toLowerCase();
-
-    return readCurrentJson().then(function (meta) {
-      var album;
-      try {
-        album = JSON.parse(utf8Decode(meta.content));
-      } catch (e) {
-        throw new Error("清单解析失败：" + e.message);
-      }
-      return fileToBase64(file).then(function (imgB64) {
-        return putFile("images/" + fname, imgB64, "add photo " + fname)
-          .then(function () {
-            album.photos = album.photos || [];
-            /* 新上传的插到最前面，最新照片排第一 */
-            album.photos.unshift({ src: "images/" + fname, title: title || "", caption: caption || "" });
-            var newJson = JSON.stringify(album, null, 2) + "\n";
-            return putFile("photos.json", utf8Encode(newJson), "add photo entry: " + fname, meta.sha);
-          })
-          .catch(function (err) {
-            err.message = "传图失败：" + err.message;
-            throw err;
-          });
+  /* 串行传图队列：逐张 PUT images/，结果顺序与 entries 一致 */
+  function uploadImagesSerial(entries) {
+    var results = [];
+    var i = 0;
+    function next() {
+      if (i >= entries.length) return Promise.resolve(results);
+      var e = entries[i];
+      i++;
+      setStatus(entries.length > 1 ? "正在传第 " + i + "/" + entries.length + " 张…" : "上传中…");
+      return putImageWithRetry(e.file).then(function (fname) {
+        results.push({ ok: true, src: "images/" + fname, title: e.title, caption: e.caption, name: e.file.name });
+        return next();
+      }).catch(function () {
+        results.push({ ok: false, name: e.file.name });
+        return next();
       });
-    }).catch(function (err) {
-      if (err.message.indexOf("清单") === -1 && err.message.indexOf("传图") === -1) {
-        err.message = "更新清单失败：" + err.message;
-      }
-      throw err;
-    });
+    }
+    return next();
+  }
+
+  function putImageWithRetry(file) {
+    return putImageOnce(file).catch(function () { return putImageOnce(file); });
+  }
+
+  function putImageOnce(file) {
+    var fname = "img_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6) + "." + file.name.split(".").pop().toLowerCase();
+    return fileToBase64(file).then(function (imgB64) {
+      return putFile("images/" + fname, imgB64, "add photo " + fname);
+    }).then(function () { return fname; });
+  }
+
+  /* 一次性把这批条目插到清单最前；sha 冲突（别人同时传）重读重试 */
+  function appendEntries(newEntries) {
+    var attempts = 0;
+    function attempt() {
+      attempts++;
+      return readCurrentJson().then(function (meta) {
+        var album;
+        try {
+          album = JSON.parse(utf8Decode(meta.content));
+        } catch (e) {
+          throw new Error("清单解析失败：" + e.message);
+        }
+        album.photos = album.photos || [];
+        album.photos = newEntries.concat(album.photos);
+        var newJson = JSON.stringify(album, null, 2) + "\n";
+        var label = newEntries.length > 1 ? "add " + newEntries.length + " photos" : "add photo entry: " + newEntries[0].src.split("/").pop();
+        return putFile("photos.json", utf8Encode(newJson), label, meta.sha);
+      }).catch(function (err) {
+        if (attempts < 3 && err.message.indexOf("409") !== -1) return attempt();
+        throw err;
+      });
+    }
+    return attempt();
   }
 
   function readCurrentJson() {
