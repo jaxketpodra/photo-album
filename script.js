@@ -8,6 +8,7 @@
   var lbTitle = document.getElementById("lb-title");
   var lbCaption = document.getElementById("lb-caption");
   var lbCount = document.getElementById("lb-count");
+  var lbDownload = document.getElementById("lb-download");
   var photos = [];
   var current = 0;
 
@@ -41,6 +42,14 @@
     if (!/^images\//.test(src)) return src;
     var base = src.split("/").pop().replace(/\.[^.]+$/, "");
     return "thumbs/" + base + ".webp";
+  }
+
+  /* 点开大图用展示版：images/1.jpeg -> show/1.webp（2560宽，秒开）；外链/GIF 原样 */
+  function showSrc(src) {
+    if (!/^images\//.test(src)) return src;
+    if (/\.gif$/i.test(src)) return src;  /* GIF 点开直接原图，保动图 */
+    var base = src.split("/").pop().replace(/\.[^.]+$/, "");
+    return "show/" + base + ".webp";
   }
 
   /* 渲染照片墙 */
@@ -98,12 +107,21 @@
 
   function show() {
     var photo = photos[current];
+    var fullSrc = resolveSrc(photo.src);
     lbImg.classList.remove("loaded");
-    lbImg.src = resolveSrc(photo.src);
+    lbImg.dataset.fbk = "";
+    lbImg.src = showSrc(photo.src);
+    /* 展示版不存在（历史图/外链）回退原图 */
+    lbImg.onerror = function () {
+      if (lbImg.dataset.fbk) return;
+      lbImg.dataset.fbk = "1";
+      lbImg.src = fullSrc;
+    };
     lbImg.alt = photo.title || "";
     lbTitle.textContent = photo.title || "";
     lbCaption.textContent = photo.caption || "";
     lbCount.textContent = (current + 1) + " / " + photos.length;
+    lbDownload.href = fullSrc;
   }
 
   function next()  { current = (current + 1) % photos.length; show(); }
@@ -382,33 +400,39 @@
     return fileToBase64(file).then(function (imgB64) {
       return putFile("images/" + fname, imgB64, "add photo " + fname);
     }).then(function () {
-      /* 缩略图失败不阻塞主流程（墙上有 onerror 回退原图兜底） */
-      return makeThumb(file).then(function (thumb) {
+      /* 缩略图(1600)+展示版(2560)各自失败都不阻塞主流程（有 onerror 回退兜底） */
+      return makePreview(file, 1600, 0.9).then(function (thumb) {
         return fileToBase64(thumb).then(function (tb64) {
           return putFile("thumbs/" + base + ".webp", tb64, "add thumb " + base);
+        });
+      }).catch(function () {}).then(function () {
+        if (ext === "gif") return;  /* GIF 不生成 show 版，点开走原图保动图 */
+        return makePreview(file, 2560, 0.88).then(function (show) {
+          return fileToBase64(show).then(function (sb64) {
+            return putFile("show/" + base + ".webp", sb64, "add show " + base);
+          });
         });
       }).catch(function () {});
     }).then(function () { return fname; });
   }
 
-  /* 前端生成缩略图：宽 1600 webp q0.9（GIF 取首帧变静态缩略图，点开仍看动图） */
-  function makeThumb(file) {
+  /* 前端生成预览图：webp（GIF 取首帧变静态，点开仍看动图） */
+  function makePreview(file, maxW, quality) {
     return new Promise(function (resolve, reject) {
       var img = new Image();
       var url = URL.createObjectURL(file);
       img.onload = function () {
-        var MAX = 1600;
         var w = img.naturalWidth, h = img.naturalHeight;
-        if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
+        if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
         var canvas = document.createElement("canvas");
         canvas.width = w;
         canvas.height = h;
         canvas.getContext("2d").drawImage(img, 0, 0, w, h);
         URL.revokeObjectURL(url);
         canvas.toBlob(function (blob) {
-          if (blob) resolve(new File([blob], "thumb.webp", { type: "image/webp" }));
+          if (blob) resolve(new File([blob], "preview.webp", { type: "image/webp" }));
           else reject(new Error("webp unsupported"));
-        }, "image/webp", 0.9);
+        }, "image/webp", quality);
       };
       img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("load fail")); };
       img.src = url;

@@ -195,6 +195,22 @@ body {
 
 .lb-close:hover { background: rgba(255,255,255,0.12); }
 
+.lb-download {
+  position: absolute;
+  top: 26px;
+  right: 80px;
+  color: #fff;
+  font-size: 0.85rem;
+  text-decoration: none;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  transition: background .2s ease;
+  z-index: 1001;
+}
+
+.lb-download:hover { background: rgba(255,255,255,0.2); }
+
 .lb-nav {
   position: absolute;
   top: 50%;
