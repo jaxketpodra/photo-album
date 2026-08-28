@@ -391,13 +391,13 @@
     }).then(function () { return fname; });
   }
 
-  /* 前端生成缩略图：宽 600 webp q0.8（GIF 取首帧变静态缩略图，点开仍看动图） */
+  /* 前端生成缩略图：宽 1600 webp q0.9（GIF 取首帧变静态缩略图，点开仍看动图） */
   function makeThumb(file) {
     return new Promise(function (resolve, reject) {
       var img = new Image();
       var url = URL.createObjectURL(file);
       img.onload = function () {
-        var MAX = 600;
+        var MAX = 1600;
         var w = img.naturalWidth, h = img.naturalHeight;
         if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; }
         var canvas = document.createElement("canvas");
@@ -408,7 +408,7 @@
         canvas.toBlob(function (blob) {
           if (blob) resolve(new File([blob], "thumb.webp", { type: "image/webp" }));
           else reject(new Error("webp unsupported"));
-        }, "image/webp", 0.8);
+        }, "image/webp", 0.9);
       };
       img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("load fail")); };
       img.src = url;
