@@ -396,7 +396,12 @@
         var label = newEntries.length > 1 ? "add " + newEntries.length + " photos" : "add photo entry: " + newEntries[0].src.split("/").pop();
         return putFile("photos.json", utf8Encode(newJson), label, meta.sha);
       }).catch(function (err) {
-        if (attempts < 3 && err.message.indexOf("409") !== -1) return attempt();
+        /* 409 = 别人同时改了清单：随机等 0.8~2.8s 错开后重读重试，最多 5 次 */
+        if (attempts < 5 && err.message.indexOf("409") !== -1) {
+          return new Promise(function (res) {
+            setTimeout(res, 800 + Math.random() * 2000);
+          }).then(attempt);
+        }
         throw err;
       });
     }
